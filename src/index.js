@@ -1,52 +1,93 @@
-const express = require('express');
-const cors = require('cors');
-const app = express();
+const jsonServer = require('json-server');
+const fs = require('fs');
+const server = jsonServer.create();
+const router = jsonServer.router('db.json');
+const middlewares = jsonServer.defaults();
+var resetDB = require('./resetDB.js');
+let defaultResponse = require('./defaultResp.js');
+let cookiesObj = require('./cookies.js');
+let time = 0;
+let resetTimer = null;
 
-const response = {
-  status: 200,
-  data: {
-    blockId: 1,
-    status: { code: 'ok', message: null },
-    supportedVersions: [
-      8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
-      28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41,
-    ],
-  },
-  headers: {
-    'cache-control': 'no-cache',
-    'content-encoding': 'gzip',
-    'content-type': 'application/json;charset=UTF-8',
-    date: 'Tue, 21 Feb 2023 20:36:50 GMT',
-    'access-control-allow-credentials': 'true',
-    'access-control-allow-headers':
-      'Access-Control-Allow-Headers, Access-Control-Allow-Origin, Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers, Access-Control-Allow-Credentials, Access-Control-Allow-Methods, X-MAC-ADDRESS',
-    'access-control-allow-methods': 'GET, POST, OPTIONS, PUT, DELETE',
-    'access-control-allow-origin': 'file://',
-    'content-type': 'application/json',
-    date: 'Tue, 21 Feb 2023 20:36:50 GMT',
-    'strict-transport-security': 'max-age=31536000',
-     'x-oracle-dms-rid': 0,
-    'x-robots-tag': 'noindex, nofollow',
-    'strict-transport-security': 'max-age=31536000',
-    vary: 'Accept-Encoding',
-    'x-oracle-dms-ecid': 'dc7c05f3-a1c6-452f-a9b1-65bba9615c6f-0000b7c0',
-   },
-};
+function writeCookiesFile({ cookies = null }) {
+  const resetMode = cookies === null;
+  cookiesObj = resetMode ? {} : { ...cookiesObj, ...cookies };
+  var data = 'module.exports =' + JSON.stringify(cookiesObj) + ';';
+  fs.writeFile('src/cookies.js', data, (err) => {
+    if (err) {
+      console.log('err:');
+      console.log(err);
+    } else {
+      resetMode
+        ? console.log('cookies reset success')
+        : console.log('cookies updated');
+    }
+  });
+}
 
+function resetData() {
+  var data = JSON.stringify(resetDB);
+  fs.writeFile('db.json', data, (err) => {
+    if (err) {
+      console.log('db.json reset err:');
+      console.log(err);
+    } else {
+      console.log('db.json reset success');
+    }
+  });
+}
 
+function restartResetTimer() {
+  if (!time) {
+    return;
+  }
+  if (resetTimer) {
+    clearTimeout(resetTimer);
+  }
+  console.log(`reset timer: reset data after ${time} min`);
 
-app.use(cors());
+  resetTimer = setTimeout(() => {
+    writeCookiesFile({ cookies: null });
+    resetData();
+  }, time * 1000 * 60);
+}
 
-app.get('*', function (req, res) {
-  res.status(200);
-  res.send(JSON.stringify(response));
+server.use(middlewares);
+server.use(jsonServer.bodyParser);
+
+server.use((req, res, next) => {
+  time = 7;
+  restartResetTimer();
+  console.log({ metod: req.method, url: req.url });
+  if (req.method == 'POST' && req.url === '/cookies') {
+    var newCookies = req.body;
+    writeCookiesFile({ cookies: newCookies });
+  }
+
+  if (req.url === '/reset') {
+    writeCookiesFile({ cookies: null });
+    resetData();
+  }
+ 
+  Object.keys(cookiesObj).forEach((key) => {
+    res.cookie(key, cookiesObj[key], { httpOnly: true });
+  });
+
+  next();
 });
 
-app.post('*', function (req, res) {
-  res.status(200);
-  res.send(JSON.stringify(response));
+server.get('/reset', (req, res) => {
+  res.send('Data Reset SUCCESS');
 });
-
-app.listen(3000, () => {
-  console.log('Server run on http://localhost:3000');
+server.post('/defaultData', (req, res) => {
+ 
+  res.send(JSON.stringify(defaultResponse))
+})
+server.get('/defaultData', (req, res) => {
+  
+  res.send(JSON.stringify(defaultResponse))
+})
+server.use(router);
+server.listen(3000, () => {
+  console.log('JSON Server is running http://localhost:3000');
 });
