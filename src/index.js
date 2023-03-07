@@ -5,25 +5,8 @@ const router = jsonServer.router('db.json');
 const middlewares = jsonServer.defaults();
 var resetDB = require('./resetDB.js');
 let defaultResponse = require('./defaultResp.js');
-let cookiesObj = require('./cookies.js');
 let time = 0;
 let resetTimer = null;
-
-function writeCookiesFile({ cookies = null }) {
-  const resetMode = cookies === null;
-  cookiesObj = resetMode ? {} : { ...cookiesObj, ...cookies };
-  var data = 'module.exports =' + JSON.stringify(cookiesObj) + ';';
-  fs.writeFile('src/cookies.js', data, (err) => {
-    if (err) {
-      console.log('err:');
-      console.log(err);
-    } else {
-      resetMode
-        ? console.log('cookies reset success')
-        : console.log('cookies updated');
-    }
-  });
-}
 
 function resetData() {
   var data = JSON.stringify(resetDB);
@@ -56,37 +39,21 @@ server.use(middlewares);
 server.use(jsonServer.bodyParser);
 
 server.use((req, res, next) => {
-  time = 7;
+  time = 10;
   restartResetTimer();
-  console.log({ metod: req.method, url: req.url });
-  if (req.method == 'POST' && req.url === '/cookies') {
-    var newCookies = req.body;
-    writeCookiesFile({ cookies: newCookies });
-  }
-
-  if (req.url === '/reset') {
-    writeCookiesFile({ cookies: null });
-    resetData();
-  }
- 
-  Object.keys(cookiesObj).forEach((key) => {
-    res.cookie(key, cookiesObj[key], { httpOnly: true });
-  });
-
   next();
 });
 
 server.get('/reset', (req, res) => {
-  res.send('Data Reset SUCCESS');
+  res.send('<p>Data Reset SUCCESS</p><button><a href="/">НАЗАД</a></button> ');
+  resetData();
 });
 server.post('/defaultData', (req, res) => {
- 
-  res.send(JSON.stringify(defaultResponse))
-})
+  res.send(JSON.stringify(defaultResponse));
+});
 server.get('/defaultData', (req, res) => {
-  
-  res.send(JSON.stringify(defaultResponse))
-})
+  res.send(JSON.stringify(defaultResponse));
+});
 server.use(router);
 server.listen(3000, () => {
   console.log('JSON Server is running http://localhost:3000');
